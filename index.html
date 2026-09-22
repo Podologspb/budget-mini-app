@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Доходы и расходы</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg: #FBF3EF;
+    --bg-deep: #F5E9E2;
+    --card: #FFFFFF;
+    --card-soft: #FCF7F4;
+    --ink: #3B2E29;
+    --ink-soft: #8E7A72;
+    --line: #EEE0D8;
+    --gold: #B98B6C;
+    --gold-deep: #9C7154;
+    --income: #7D9583;
+    --income-bg: #EEF3EE;
+    --expense: #BD7462;
+    --expense-bg: #F8ECE8;
+    --radius-lg: 22px;
+    --radius-md: 16px;
+    --radius-sm: 12px;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin:0;
+    padding:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body{
+    padding-bottom: 40px;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .bg-wash{
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(600px 300px at 100% -10%, #F1DCCE 0%, transparent 60%),
+      radial-gradient(500px 260px at -10% 0%, #F6E4DD 0%, transparent 55%),
+      var(--bg);
+    z-index: -1;
+  }
+
+  .app{
+    max-width: 460px;
+    margin: 0 auto;
+    padding: 18px 18px 8px;
+  }
+
+  /* ---- Month switcher ---- */
+  .month-bar{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 18px;
+    padding: 6px 0 20px;
+  }
+  .month-bar button{
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--gold-deep);
+    font-size: 16px;
+    display:flex; align-items:center; justify-content:center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .month-bar button:active{ background: var(--bg-deep); }
+  .month-label{
+    font-size: 15px;
+    letter-spacing: 0.2px;
+    color: var(--ink);
+    font-weight: 600;
+    min-width: 150px;
+    text-align: center;
+  }
+
+  /* ---- Balance hero ---- */
+  .balance-card{
+    background: linear-gradient(155deg, #FFFFFF 0%, var(--card-soft) 100%);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 24px 22px 20px;
+    margin-bottom: 22px;
+    position: relative;
+    overflow: hidden;
+  }
+  .balance-card::after{
+    content:"";
+    position:absolute;
+    width: 130px; height: 130px;
+    right: -40px; top: -50px;
+    background: radial-gradient(circle, rgba(185,139,108,0.16) 0%, transparent 70%);
+  }
+  .balance-label{
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin: 0 0 6px;
+  }
+  .balance-value{
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 34px;
+    line-height: 1.1;
+    margin: 0 0 18px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+  .balance-sub{
+    display:flex;
+    gap: 14px;
+  }
+  .balance-sub .chip{
+    flex:1;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+  }
+  .chip-label{
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    margin: 0 0 3px;
+  }
+  .chip-value{
+    font-size: 16px;
+    font-weight: 600;
+    margin:0;
+  }
+  .chip-value.income{ color: var(--income); }
+  .chip-value.expense{ color: var(--expense); }
+
+  /* ---- Sections ---- */
+  .section-title{
+    font-size: 13px;
+    text-transform: none;
+    color: var(--ink-soft);
+    margin: 0 0 10px 2px;
+    font-weight: 600;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .cat-card{
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 16px 14px 14px;
+    position: relative;
+  }
+  .cat-card .cat-name{
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 0 0 8px;
+  }
+  .cat-card .cat-amount{
+    font-size: 19px;
+    font-weight: 600;
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+  .add-btn{
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: var(--gold);
+    color: #fff;
+    font-size: 17px;
+    line-height: 1;
+    display:flex; align-items:center; justify-content:center;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 3px 10px rgba(185,139,108,0.35);
+  }
+  .add-btn:active{ background: var(--gold-deep); transform: scale(0.94); }
+
+  .cat-card.income-card .cat-amount{ color: var(--income); }
+  .cat-card.expense-card .cat-amount{ color: var(--expense); }
+
+  .total-card{
+    grid-column: 1 / -1;
+    background: var(--expense-bg);
+    border: 1px dashed #DDB5A8;
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+  }
+  .total-card .cat-name{ color: var(--expense); margin:0; font-size: 13px; font-weight: 600; }
+  .total-card .cat-amount{ color: var(--expense); font-size: 19px; margin:0; font-family: Georgia, serif; font-weight: 700; }
+
+  /* ---- History list ---- */
+  .history-list{
+    display:flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .history-empty{
+    text-align:center;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    padding: 22px 10px;
+    background: var(--card);
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-md);
+  }
+  .history-row{
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 11px 12px;
+  }
+  .history-row .h-main{
+    flex: 1;
+    min-width: 0;
+  }
+  .history-row .h-cat{
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 2px;
+  }
+  .history-row .h-date{
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .history-row .h-amount{
+    font-size: 15px;
+    font-weight: 600;
+    font-family: Georgia, serif;
+    white-space: nowrap;
+  }
+  .history-row .h-amount.income{ color: var(--income); }
+  .history-row .h-amount.expense{ color: var(--expense); }
+  .history-row .h-del{
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: var(--bg-deep);
+    color: var(--ink-soft);
+    font-size: 14px;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .history-row .h-del:active{ background: var(--expense-bg); color: var(--expense); }
+
+  /* ---- Streak ---- */
+  .streak-card{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+  }
+  .streak-flame{
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .streak-flame.off{ opacity: 0.35; filter: grayscale(1); }
+  .streak-text{
+    flex: 1;
+  }
+  .streak-title{
+    font-size: 13.5px;
+    font-weight: 600;
+    margin: 0 0 1px;
+  }
+  .streak-sub{
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  /* ---- Balance card extras ---- */
+  .balance-top{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .month-tag{
+    font-size: 10.5px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .month-tag.current{ background: var(--income-bg); color: var(--income); }
+  .month-tag.past{ background: var(--bg-deep); color: var(--ink-soft); }
+
+  .sparkline-wrap{
+    margin: 2px 0 16px;
+    line-height: 0;
+  }
+
+  .chip-delta{
+    font-size: 11px;
+    font-weight: 600;
+    margin: 3px 0 0;
+  }
+  .chip-delta.up{ color: var(--income); }
+  .chip-delta.down{ color: var(--expense); }
+  .chip-delta.flat{ color: var(--ink-soft); }
+
+  /* ---- Category icons ---- */
+  .cat-icon-badge{
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--bg-deep);
+    color: var(--gold-deep);
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom: 9px;
+  }
+  .cat-icon-badge svg{ width: 15px; height: 15px; }
+
+  .h-icon{
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--bg-deep);
+    color: var(--gold-deep);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink: 0;
+  }
+  .h-icon svg{ width: 13px; height: 13px; }
+
+  /* ---- Empty / error state ---- */
+  .placeholder{
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--ink-soft);
+  }
+  .placeholder .ph-icon{
+    font-size: 34px;
+    margin-bottom: 10px;
+  }
+  .placeholder p{
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 4px 0;
+  }
+  .placeholder button{
+    margin-top: 16px;
+    border: 1px solid var(--gold);
+    color: var(--gold-deep);
+    background: transparent;
+    border-radius: 20px;
+    padding: 8px 18px;
+    font-size: 13.5px;
+  }
+
+  /* ---- Modal ---- */
+  .overlay{
+    position: fixed;
+    inset: 0;
+    background: rgba(59,46,41,0.35);
+    display:flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 50;
+  }
+  .overlay.open{ opacity: 1; pointer-events: auto; }
+
+  .sheet{
+    width: 100%;
+    max-width: 460px;
+    background: var(--bg);
+    border-radius: 24px 24px 0 0;
+    padding: 22px 22px calc(24px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(20px);
+    transition: transform 0.25s ease;
+  }
+  .overlay.open .sheet{ transform: translateY(0); }
+
+  .sheet-handle{
+    width: 36px; height: 4px;
+    background: var(--line);
+    border-radius: 3px;
+    margin: 0 auto 16px;
+  }
+
+  .sheet-title{
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin: 0 0 2px;
+  }
+  .sheet-cat{
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 20px;
+  }
+
+  .amount-input-wrap{
+    display:flex;
+    align-items:baseline;
+    justify-content:center;
+    gap: 6px;
+    margin-bottom: 22px;
+    border-bottom: 2px solid var(--line);
+    padding-bottom: 12px;
+  }
+  .amount-input-wrap input{
+    border:none;
+    background:transparent;
+    outline:none;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 36px;
+    width: 100%;
+    text-align:center;
+    color: var(--ink);
+  }
+  .amount-input-wrap input::placeholder{ color: #D9C7BE; }
+  .amount-input-wrap .cur{
+    font-size: 20px;
+    color: var(--ink-soft);
+  }
+
+  .sheet-date{
+    text-align:center;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-bottom: 20px;
+  }
+
+  .sheet-actions{
+    display:flex;
+    gap: 10px;
+  }
+  .sheet-actions button{
+    flex:1;
+    padding: 13px;
+    border-radius: 14px;
+    font-size: 15px;
+    border: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-cancel{
+    background: var(--card);
+    border: 1px solid var(--line) !important;
+    color: var(--ink-soft);
+  }
+  .btn-save{
+    background: var(--gold);
+    color: #fff;
+    font-weight: 600;
+  }
+  .btn-save:disabled{
+    background: #E4D2C6;
+    color: #fff;
+  }
+  .btn-save:active:not(:disabled){ background: var(--gold-deep); }
+
+  /* toast */
+  .toast{
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--ink);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 13.5px;
+    opacity: 0;
+    transition: all 0.25s ease;
+    pointer-events: none;
+    z-index: 60;
+  }
+  .toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="bg-wash"></div>
+
+<div class="app" id="app">
+  <div class="month-bar">
+    <button id="prevMonth" aria-label="Предыдущий месяц">‹</button>
+    <div class="month-label" id="monthLabel">—</div>
+    <button id="nextMonth" aria-label="Следующий месяц">›</button>
+  </div>
+
+  <div id="streakSlot"></div>
+  <div id="content"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <p class="sheet-title" id="sheetType">Расход</p>
+    <p class="sheet-cat" id="sheetCat">Работа</p>
+
+    <div class="amount-input-wrap">
+      <input type="number" inputmode="decimal" id="amountInput" placeholder="0" min="0" step="1">
+      <span class="cur">₽</span>
+    </div>
+
+    <p class="sheet-date" id="sheetDate">Сегодня</p>
+
+    <div class="sheet-actions">
+      <button class="btn-cancel" id="cancelBtn">Отмена</button>
+      <button class="btn-save" id="saveBtn" disabled>Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  // --- Telegram WebApp init ---
+  try{
+    if (window.Telegram && window.Telegram.WebApp){
+      Telegram.WebApp.ready();
+      Telegram.WebApp.expand();
+    }
+  }catch(e){ /* работает и вне Telegram, для превью */ }
+
+  var state = {
+    data: null,
+    currentMonth: null, // "YYYY-MM"
+    pendingType: null,
+    pendingCategory: null,
+    editingId: null,
+    lastShown: { balance: 0, income: 0, expense: 0 }
+  };
+
+  function animateNumberEl(el, from, to, duration){
+    if (!el) return;
+    duration = duration || 550;
+    from = from || 0;
+    var startTime = null;
+    function step(ts){
+      if (!startTime) startTime = ts;
+      var progress = Math.min((ts - startTime) / duration, 1);
+      var eased = 1 - Math.pow(1 - progress, 3);
+      var current = from + (to - from) * eased;
+      el.textContent = formatMoney(current);
+      if (progress < 1) requestAnimationFrame(step);
+      else el.textContent = formatMoney(to);
+    }
+    requestAnimationFrame(step);
+  }
+
+  var monthNames = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+
+  function formatMoney(n){
+    return Math.round(n).toLocaleString('ru-RU') + ' ₽';
+  }
+
+  function monthLabel(ym){
+    var parts = ym.split('-');
+    var y = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10) - 1;
+    return monthNames[m] + ' ' + y;
+  }
+
+  function shiftMonth(ym, delta){
+    var parts = ym.split('-');
+    var y = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10) - 1;
+    m += delta;
+    if (m < 0){ m = 11; y -= 1; }
+    if (m > 11){ m = 0; y += 1; }
+    return y + '-' + String(m + 1).padStart(2, '0');
+  }
+
+  function todayISO(){
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  // Резервная копия data.json — нужна только для просмотра прототипа
+  // без хостинга (например, в превью Клода). При реальном запуске
+  // на сервере данные подтягиваются из data.json, этот блок не мешает.
+  // Перед боевым запуском его можно удалить целиком.
+  var FALLBACK_DATA = {
+    "month": "2026-09",
+    "categories": {
+      "income": [
+        { "id": "work", "label": "Работа" },
+        { "id": "other_income", "label": "Другое" }
+      ],
+      "expense": [
+        { "id": "work_exp", "label": "Работа" },
+        { "id": "son", "label": "Сын" },
+        { "id": "other_expense", "label": "Другое" }
+      ]
+    },
+    "entries": [
+      { "id": 1, "type": "income", "category": "work", "amount": 185000, "date": "2026-09-01" },
+      { "id": 2, "type": "income", "category": "work", "amount": 92000, "date": "2026-09-15" },
+      { "id": 3, "type": "income", "category": "other_income", "amount": 12000, "date": "2026-09-08" },
+      { "id": 4, "type": "expense", "category": "work_exp", "amount": 15500, "date": "2026-09-03" },
+      { "id": 5, "type": "expense", "category": "son", "amount": 8200, "date": "2026-09-10" },
+      { "id": 6, "type": "expense", "category": "other_expense", "amount": 4300, "date": "2026-09-18" }
+    ]
+  };
+
+  function loadData(){
+    var url = 'data.json?v=' + Date.now();
+    fetch(url)
+      .then(function(res){
+        if (!res.ok) throw new Error('bad status');
+        return res.json();
+      })
+      .then(function(json){
+        state.data = json;
+        state.currentMonth = json.month || todayISO().slice(0,7);
+        render();
+      })
+      .catch(function(){
+        // data.json не подтянулся (например, файл открыт не с хостинга) —
+        // показываем прототип на резервных данных, чтобы его можно было оценить.
+        state.data = FALLBACK_DATA;
+        state.currentMonth = FALLBACK_DATA.month;
+        render();
+        showToast('Показаны демо-данные (data.json не подключён)');
+      });
+  }
+
+  function entriesForMonth(ym){
+    if (!state.data) return [];
+    return state.data.entries.filter(function(e){ return e.date.slice(0,7) === ym; });
+  }
+
+  function sumFor(ym, type, category){
+    return entriesForMonth(ym)
+      .filter(function(e){ return e.type === type && (!category || e.category === category); })
+      .reduce(function(acc, e){ return acc + e.amount; }, 0);
+  }
+
+  function daysInMonth(ym){
+    var parts = ym.split('-');
+    var y = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    return new Date(y, m, 0).getDate();
+  }
+
+  function isCurrentMonth(ym){
+    return ym === todayISO().slice(0, 7);
+  }
+
+  function pctDelta(cur, prev){
+    if (prev === 0){
+      return cur === 0 ? null : { value: 100, isNew: true };
+    }
+    var pct = Math.round(((cur - prev) / prev) * 100);
+    return { value: pct, isNew: false };
+  }
+
+  function deltaBadge(cur, prev, goodWhenUp){
+    var d = pctDelta(cur, prev);
+    if (d === null) return '<p class="chip-delta flat">за прошлый месяц не было</p>';
+    var arrow = d.value > 0 ? '▲' : (d.value < 0 ? '▼' : '—');
+    var isGood = d.value === 0 ? null : (goodWhenUp ? d.value > 0 : d.value < 0);
+    var cls = isGood === null ? 'flat' : (isGood ? 'up' : 'down');
+    var text = d.isNew ? 'новое в этом месяце' : (arrow + ' ' + Math.abs(d.value) + '% к прошлому');
+    return '<p class="chip-delta ' + cls + '">' + text + '</p>';
+  }
+
+  function sparklineSvg(ym){
+    var total = daysInMonth(ym);
+    var lastDay = isCurrentMonth(ym) ? new Date().getDate() : total;
+    if (lastDay < 2) return '';
+
+    var entries = entriesForMonth(ym);
+    var cumulative = 0;
+    var points = [];
+    for (var d = 1; d <= lastDay; d++){
+      var dayStr = ym + '-' + String(d).padStart(2, '0');
+      entries.forEach(function(e){
+        if (e.date === dayStr){
+          cumulative += e.type === 'income' ? e.amount : -e.amount;
+        }
+      });
+      points.push(cumulative);
+    }
+
+    var w = 400, h = 64, pad = 4;
+    var min = Math.min.apply(null, points.concat([0]));
+    var max = Math.max.apply(null, points.concat([0]));
+    var range = (max - min) || 1;
+
+    var coords = points.map(function(v, i){
+      var x = pad + (i / (points.length - 1 || 1)) * (w - pad * 2);
+      var y = h - pad - ((v - min) / range) * (h - pad * 2);
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+
+    var lastX = coords[coords.length - 1].split(',')[0];
+    var lastY = coords[coords.length - 1].split(',')[1];
+
+    var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" height="64" preserveAspectRatio="none">';
+    svg += '<polyline points="' + coords.join(' ') + '" fill="none" stroke="#B98B6C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    svg += '<circle cx="' + lastX + '" cy="' + lastY + '" r="3.2" fill="#9C7154"/>';
+    svg += '</svg>';
+    return svg;
+  }
+
+  function computeStreak(){
+    if (!state.data || state.data.entries.length === 0) return { count: 0, active: false };
+
+    var days = {};
+    state.data.entries.forEach(function(e){ days[e.date] = true; });
+    var sortedDates = Object.keys(days).sort();
+    var lastDate = sortedDates[sortedDates.length - 1];
+
+    var today = todayISO();
+    var yesterday = shiftDay(today, -1);
+    var active = (lastDate === today || lastDate === yesterday);
+
+    // считаем подряд идущие дни назад от последней даты с записью
+    var count = 1;
+    var cursor = lastDate;
+    while (true){
+      var prevDay = shiftDay(cursor, -1);
+      if (days[prevDay]){
+        count++;
+        cursor = prevDay;
+      } else {
+        break;
+      }
+    }
+    return { count: count, active: active, lastDate: lastDate };
+  }
+
+  function shiftDay(iso, delta){
+    var d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + delta);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function streakPhrase(count){
+    if (count <= 1) return 'Первая запись — хорошее начало';
+    if (count <= 4) return 'Дни подряд — привычка формируется';
+    if (count <= 9) return 'Дней подряд — уже держишь ритм';
+    return 'Дней подряд — это уже система';
+  }
+
+  function renderStreak(){
+    var s = computeStreak();
+    var slot = document.getElementById('streakSlot');
+    if (s.count === 0){
+      slot.innerHTML = '';
+      return;
+    }
+    var flameCls = s.active ? '' : 'off';
+    var title = s.count + ' ' + (s.active ? streakPhrase(s.count) : 'дней подряд — стрик прерван');
+    var sub = s.active
+      ? 'Не забудь внести запись сегодня'
+      : 'Последняя запись: ' + formatDateFull(s.lastDate) + '. Начни новый стрик сегодня';
+    slot.innerHTML =
+      '<div class="streak-card">' +
+      '  <div class="streak-flame ' + flameCls + '">🔥</div>' +
+      '  <div class="streak-text">' +
+      '    <p class="streak-title">' + title + '</p>' +
+      '    <p class="streak-sub">' + sub + '</p>' +
+      '  </div>' +
+      '</div>';
+  }
+
+  function render(){
+    document.getElementById('monthLabel').textContent = monthLabel(state.currentMonth);
+    renderStreak();
+
+    var ym = state.currentMonth;
+    var incomeCats = state.data.categories.income;
+    var expenseCats = state.data.categories.expense;
+
+    var totalIncome = sumFor(ym, 'income');
+    var totalExpense = sumFor(ym, 'expense');
+    var balance = totalIncome - totalExpense;
+
+    var prevYm = shiftMonth(ym, -1);
+    var prevIncome = sumFor(prevYm, 'income');
+    var prevExpense = sumFor(prevYm, 'expense');
+
+    var current = isCurrentMonth(ym);
+    var monthTag = current
+      ? '<span class="month-tag current">текущий месяц</span>'
+      : '<span class="month-tag past">месяц завершён</span>';
+
+    var html = '';
+
+    html += '<div class="balance-card">';
+    html += '  <div class="balance-top">';
+    html += '    <p class="balance-label" style="margin:0;">' + (current ? 'Баланс за месяц' : 'Итог месяца') + '</p>';
+    html += '    ' + monthTag;
+    html += '  </div>';
+    html += '  <p class="balance-value" id="balanceValue">' + formatMoney(balance) + '</p>';
+    html += '  <div class="sparkline-wrap">' + sparklineSvg(ym) + '</div>';
+    html += '  <div class="balance-sub">';
+    html += '    <div class="chip"><p class="chip-label">Доходы</p><p class="chip-value income" id="incomeValue">' + formatMoney(totalIncome) + '</p>' + deltaBadge(totalIncome, prevIncome, true) + '</div>';
+    html += '    <div class="chip"><p class="chip-label">Расходы</p><p class="chip-value expense" id="expenseValue">' + formatMoney(totalExpense) + '</p>' + deltaBadge(totalExpense, prevExpense, false) + '</div>';
+    html += '  </div>';
+    html += '</div>';
+
+    html += '<p class="section-title">Доходы</p>';
+    html += '<div class="grid">';
+    incomeCats.forEach(function(cat){
+      var amt = sumFor(ym, 'income', cat.id);
+      html += catCard('income', cat, amt);
+    });
+    html += '</div>';
+
+    html += '<p class="section-title">Расходы</p>';
+    html += '<div class="grid">';
+    expenseCats.forEach(function(cat){
+      var amt = sumFor(ym, 'expense', cat.id);
+      html += catCard('expense', cat, amt);
+    });
+    html += '  <div class="total-card">';
+    html += '    <p class="cat-name">Расходы: общее</p>';
+    html += '    <p class="cat-amount">' + formatMoney(totalExpense) + '</p>';
+    html += '  </div>';
+    html += '</div>';
+
+    html += '<p class="section-title">Операции за месяц</p>';
+    html += historyHtml(ym);
+
+    document.getElementById('content').innerHTML = html;
+
+    animateNumberEl(document.getElementById('balanceValue'), state.lastShown.balance, balance);
+    animateNumberEl(document.getElementById('incomeValue'), state.lastShown.income, totalIncome);
+    animateNumberEl(document.getElementById('expenseValue'), state.lastShown.expense, totalExpense);
+    state.lastShown = { balance: balance, income: totalIncome, expense: totalExpense };
+
+    document.querySelectorAll('.add-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        openSheet(btn.dataset.type, btn.dataset.cat, btn.dataset.label, null);
+      });
+    });
+
+    document.querySelectorAll('.history-row').forEach(function(row){
+      row.addEventListener('click', function(e){
+        if (e.target.closest('.h-del')) return; // удаление обрабатывается отдельно
+        var id = row.dataset.id;
+        var entry = state.data.entries.find(function(e){ return String(e.id) === id; });
+        if (!entry) return;
+        var label = categoryLabel(entry.type, entry.category);
+        openSheet(entry.type, entry.category, label, entry.id);
+      });
+    });
+
+    document.querySelectorAll('.h-del').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var id = btn.dataset.id;
+        confirmDelete(function(){
+          state.data.entries = state.data.entries.filter(function(en){ return String(en.id) !== id; });
+          render();
+          showToast('Запись удалена');
+        });
+      });
+    });
+  }
+
+  function categoryLabel(type, catId){
+    var list = type === 'income' ? state.data.categories.income : state.data.categories.expense;
+    var found = list.find(function(c){ return c.id === catId; });
+    return found ? found.label : catId;
+  }
+
+  function historyHtml(ym){
+    var list = entriesForMonth(ym).slice().sort(function(a, b){
+      return b.date.localeCompare(a.date) || (b.id > a.id ? 1 : -1);
+    });
+
+    if (list.length === 0){
+      return '<div class="history-empty">За этот месяц пока нет записей</div>';
+    }
+
+    var h = '<div class="history-list">';
+    list.forEach(function(entry){
+      var label = categoryLabel(entry.type, entry.category);
+      var sign = entry.type === 'income' ? '+' : '−';
+      var cls = entry.type;
+      h += '<div class="history-row" data-id="' + entry.id + '">';
+      h += '  <div class="h-icon">' + iconFor(entry.category) + '</div>';
+      h += '  <div class="h-main">';
+      h += '    <p class="h-cat">' + label + '</p>';
+      h += '    <p class="h-date">' + formatDateShort(entry.date) + '</p>';
+      h += '  </div>';
+      h += '  <div class="h-amount ' + cls + '">' + sign + formatMoney(entry.amount) + '</div>';
+      h += '  <button class="h-del" data-id="' + entry.id + '" aria-label="Удалить">✕</button>';
+      h += '</div>';
+    });
+    h += '</div>';
+    return h;
+  }
+
+  function formatDateShort(iso){
+    var months = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
+    var parts = iso.split('-');
+    var d = parseInt(parts[2], 10);
+    var m = parseInt(parts[1], 10) - 1;
+    return d + ' ' + months[m];
+  }
+
+  function confirmDelete(onConfirm){
+    try{
+      if (window.Telegram && window.Telegram.WebApp && Telegram.WebApp.showConfirm){
+        Telegram.WebApp.showConfirm('Удалить эту запись?', function(ok){
+          if (ok) onConfirm();
+        });
+        return;
+      }
+    }catch(e){}
+    if (window.confirm('Удалить эту запись?')) onConfirm();
+  }
+
+  var ICONS = {
+    briefcase: '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="6" width="12" height="7.2" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M6 6V4.6C6 3.72 6.72 3 7.6 3h0.8c0.88 0 1.6 0.72 1.6 1.6V6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+    spark: '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 2.4v11.2M2.4 8h11.2M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+    person: '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="5.2" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M3.2 13.6c0-2.65 2.15-4.8 4.8-4.8s4.8 2.15 4.8 4.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+    dot: '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg>'
+  };
+
+  function iconKeyFor(catId){
+    var id = (catId || '').toLowerCase();
+    if (id.indexOf('work') !== -1) return 'briefcase';
+    if (id === 'son' || id.indexOf('son') !== -1 || id.indexOf('сын') !== -1) return 'person';
+    if (id.indexOf('other') !== -1) return 'spark';
+    return 'dot';
+  }
+
+  function iconFor(catId){
+    return ICONS[iconKeyFor(catId)];
+  }
+
+  function catCard(type, cat, amount){
+    var cls = type === 'income' ? 'income-card' : 'expense-card';
+    var h = '<div class="cat-card ' + cls + '">';
+    h += '  <div class="cat-icon-badge">' + iconFor(cat.id) + '</div>';
+    h += '  <p class="cat-name">' + cat.label + '</p>';
+    h += '  <p class="cat-amount">' + formatMoney(amount) + '</p>';
+    h += '  <button class="add-btn" data-type="' + type + '" data-cat="' + cat.id + '" data-label="' + cat.label + '">+</button>';
+    h += '</div>';
+    return h;
+  }
+
+  function renderError(){
+    var h = '';
+    h += '<div class="placeholder">';
+    h += '  <div class="ph-icon">⟳</div>';
+    h += '  <p>Не получилось загрузить данные.</p>';
+    h += '  <p>Проверь файл data.json и попробуй ещё раз.</p>';
+    h += '  <button id="retryBtn">Повторить</button>';
+    h += '</div>';
+    document.getElementById('content').innerHTML = h;
+    document.getElementById('monthLabel').textContent = '—';
+    var retry = document.getElementById('retryBtn');
+    if (retry) retry.addEventListener('click', loadData);
+  }
+
+  // --- Modal / add entry ---
+  var overlay = document.getElementById('overlay');
+  var amountInput = document.getElementById('amountInput');
+  var saveBtn = document.getElementById('saveBtn');
+  var cancelBtn = document.getElementById('cancelBtn');
+
+  function openSheet(type, catId, catLabel, editId){
+    state.pendingType = type;
+    state.pendingCategory = catId;
+    state.editingId = editId || null;
+
+    var isEdit = !!editId;
+    document.getElementById('sheetType').textContent =
+      (isEdit ? 'Изменить · ' : '') + (type === 'income' ? 'Доход' : 'Расход');
+    document.getElementById('sheetCat').textContent = catLabel;
+    saveBtn.textContent = isEdit ? 'Сохранить изменения' : 'Сохранить';
+
+    if (isEdit){
+      var entry = state.data.entries.find(function(e){ return e.id === editId; });
+      amountInput.value = entry ? entry.amount : '';
+      document.getElementById('sheetDate').textContent = formatDateFull(entry.date);
+      saveBtn.disabled = !(entry && entry.amount > 0);
+    } else {
+      amountInput.value = '';
+      document.getElementById('sheetDate').textContent = 'Сегодня, ' + formatDateRu(new Date());
+      saveBtn.disabled = true;
+    }
+
+    overlay.classList.add('open');
+    setTimeout(function(){ amountInput.focus(); }, 250);
+  }
+
+  function formatDateFull(iso){
+    var months = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
+    var parts = iso.split('-');
+    var d = parseInt(parts[2], 10);
+    var m = parseInt(parts[1], 10) - 1;
+    return d + ' ' + months[m] + ' ' + parts[0];
+  }
+
+  function closeSheet(){
+    overlay.classList.remove('open');
+  }
+
+  function formatDateRu(d){
+    var months = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
+    return d.getDate() + ' ' + months[d.getMonth()];
+  }
+
+  amountInput.addEventListener('input', function(){
+    var v = parseFloat(amountInput.value);
+    saveBtn.disabled = !(v > 0);
+  });
+
+  cancelBtn.addEventListener('click', closeSheet);
+  overlay.addEventListener('click', function(e){
+    if (e.target === overlay) closeSheet();
+  });
+
+  saveBtn.addEventListener('click', function(){
+    var amount = parseFloat(amountInput.value);
+    if (!(amount > 0)) return;
+
+    var msg;
+    if (state.editingId){
+      var entry = state.data.entries.find(function(e){ return e.id === state.editingId; });
+      if (entry){
+        entry.amount = amount;
+        msg = 'Запись изменена: ' + formatMoney(amount);
+      }
+    } else {
+      var newEntry = {
+        id: Date.now(),
+        type: state.pendingType,
+        category: state.pendingCategory,
+        amount: amount,
+        date: todayISO()
+      };
+      state.data.entries.push(newEntry);
+      msg = 'Добавлено: ' + formatMoney(amount);
+    }
+
+    closeSheet();
+    render();
+    if (msg) showToast(msg);
+
+    try{
+      if (window.Telegram && window.Telegram.WebApp && Telegram.WebApp.HapticFeedback){
+        Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      }
+    }catch(e){}
+  });
+
+  var toastTimer;
+  function showToast(msg){
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+
+  // --- Month nav ---
+  document.getElementById('prevMonth').addEventListener('click', function(){
+    if (!state.data) return;
+    state.currentMonth = shiftMonth(state.currentMonth, -1);
+    render();
+  });
+  document.getElementById('nextMonth').addEventListener('click', function(){
+    if (!state.data) return;
+    state.currentMonth = shiftMonth(state.currentMonth, 1);
+    render();
+  });
+
+  loadData();
+})();
+</script>
+
+</body>
+</html>
