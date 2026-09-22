@@ -599,12 +599,9 @@
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   }
 
-  // Резервная копия data.json — нужна только для просмотра прототипа
-  // без хостинга (например, в превью Клода). При реальном запуске
-  // на сервере данные подтягиваются из data.json, этот блок не мешает.
-  // Перед боевым запуском его можно удалить целиком.
-  var FALLBACK_DATA = {
-    "month": "2026-09",
+  // Категории по умолчанию при первом запуске. Записи начинаются пустыми.
+  var DEFAULT_DB = {
+    "month": null,
     "categories": {
       "income": [
         { "id": "work", "label": "Работа" },
@@ -616,6 +613,13 @@
         { "id": "other_expense", "label": "Другое" }
       ]
     },
+    "entries": []
+  };
+
+  // Демо-данные для превью вне Telegram (обычный браузер) — не сохраняются.
+  var FALLBACK_DATA = {
+    "month": "2026-09",
+    "categories": DEFAULT_DB.categories,
     "entries": [
       { "id": 1, "type": "income", "category": "work", "amount": 185000, "date": "2026-09-01" },
       { "id": 2, "type": "income", "category": "work", "amount": 92000, "date": "2026-09-15" },
@@ -626,26 +630,99 @@
     ]
   };
 
+  // --- Хранилище: Telegram CloudStorage (приватно, синхронно между устройствами) ---
+  var CHUNK = 3800;
+  function cloud(){
+    try{ return (window.Telegram && Telegram.WebApp && Telegram.WebApp.CloudStorage) ? Telegram.WebApp.CloudStorage : null; }
+    catch(e){ return null; }
+  }
+  function cloudGet(keys){
+    return new Promise(function(resolve){
+      var cs = cloud();
+      if (!cs) return resolve(null);
+      cs.getItems(keys, function(err, res){ resolve(err ? null : res); });
+    });
+  }
+  function cloudSet(key, value){
+    return new Promise(function(resolve){
+      var cs = cloud();
+      if (!cs) return resolve(false);
+      cs.setItem(key, value, function(err, ok){ resolve(!err && !!ok); });
+    });
+  }
+  function cloudRemove(keys){
+    return new Promise(function(resolve){
+      var cs = cloud();
+      if (!cs || !keys.length) return resolve(true);
+      cs.removeItems(keys, function(err){ resolve(!err); });
+    });
+  }
+
+  var saveTimer = null, saving = false, saveAgain = false;
+
+  // Дебаунс, чтобы не дёргать облако на каждый тап.
+  function saveData(){
+    if (!cloud()) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(doSave, 400);
+  }
+
+  function doSave(){
+    if (!cloud()) return;
+    if (saving){ saveAgain = true; return; }
+    saving = true;
+    var json = JSON.stringify(state.data);
+    var chunks = [];
+    for (var i = 0; i < json.length; i += CHUNK){ chunks.push(json.slice(i, i + CHUNK)); }
+    var writes = [ cloudSet('db_count', String(chunks.length)) ];
+    chunks.forEach(function(c, idx){ writes.push(cloudSet('db_' + idx, c)); });
+    Promise.all(writes).then(function(){
+      // подчистить хвостовые чанки от прошлой (более длинной) версии
+      var stale = [];
+      for (var k = chunks.length; k < chunks.length + 8; k++){ stale.push('db_' + k); }
+      return cloudRemove(stale);
+    }).then(function(){
+      saving = false;
+      if (saveAgain){ saveAgain = false; doSave(); }
+    }).catch(function(){ saving = false; });
+  }
+
+  function initFresh(){
+    state.data = JSON.parse(JSON.stringify(DEFAULT_DB));
+    state.currentMonth = todayISO().slice(0,7);
+    render();
+    saveData();
+  }
+
   function loadData(){
-    var url = 'data.json?v=' + Date.now();
-    fetch(url)
-      .then(function(res){
-        if (!res.ok) throw new Error('bad status');
-        return res.json();
-      })
-      .then(function(json){
-        state.data = json;
-        state.currentMonth = json.month || todayISO().slice(0,7);
-        render();
-      })
-      .catch(function(){
-        // data.json не подтянулся (например, файл открыт не с хостинга) —
-        // показываем прототип на резервных данных, чтобы его можно было оценить.
-        state.data = FALLBACK_DATA;
-        state.currentMonth = FALLBACK_DATA.month;
-        render();
-        showToast('Показаны демо-данные (data.json не подключён)');
+    var cs = cloud();
+    if (!cs){
+      // Превью вне Telegram — показываем демо без сохранения.
+      state.data = FALLBACK_DATA;
+      state.currentMonth = FALLBACK_DATA.month;
+      render();
+      showToast('Демо-режим — откройте через Telegram, чтобы сохранять');
+      return;
+    }
+    cloudGet(['db_count']).then(function(meta){
+      var n = (meta && meta.db_count) ? parseInt(meta.db_count, 10) : 0;
+      if (!n){ initFresh(); return; }
+      var keys = [];
+      for (var i = 0; i < n; i++){ keys.push('db_' + i); }
+      cloudGet(keys).then(function(res){
+        try{
+          var json = '';
+          for (var i = 0; i < n; i++){ json += ((res && res['db_' + i]) || ''); }
+          var data = JSON.parse(json);
+          if (!data || !data.categories) throw new Error('bad');
+          state.data = data;
+          state.currentMonth = todayISO().slice(0,7);
+          render();
+        }catch(e){
+          initFresh();
+        }
       });
+    });
   }
 
   function entriesForMonth(ym){
@@ -879,6 +956,7 @@
         confirmDelete(function(){
           state.data.entries = state.data.entries.filter(function(en){ return String(en.id) !== id; });
           render();
+          saveData();
           showToast('Запись удалена');
         });
       });
@@ -1067,6 +1145,7 @@
 
     closeSheet();
     render();
+    saveData();
     if (msg) showToast(msg);
 
     try{
